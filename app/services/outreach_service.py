@@ -51,7 +51,6 @@ class OutreachService:
         contact_id: str,
         job_opening_id: str | None = None,
     ) -> OutreachTarget:
-        # Verify campaign exists
         await self.get_campaign(campaign_id)
 
         target = OutreachTarget(
@@ -73,7 +72,6 @@ class OutreachService:
         return target
 
     async def get_pending_targets(self, campaign_id: str) -> list[OutreachTarget]:
-        """Return all targets with status='pending' for this campaign."""
         stmt = (
             select(OutreachTarget)
             .where(

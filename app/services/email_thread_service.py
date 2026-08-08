@@ -15,12 +15,6 @@ logger = get_logger(__name__)
 class EmailThreadService:
     """
     Manages EmailThread and EmailMessage records.
-
-    Responsibilities:
-    - Create a thread record after a successful send
-    - Record each outbound message
-    - Record each inbound reply
-    - Detect which messages are new (not yet in DB)
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -80,7 +74,7 @@ class EmailThreadService:
             gmail_message_id=gmail_message_id,
             direction="inbound",
             body_text=body_text,
-            sent_at=received_at or datetime.utcnow(),
+            sent_at=received_at or datetime.now(UTC),
         )
         self._session.add(msg)
         await self._session.commit()
@@ -105,16 +99,6 @@ class EmailThreadService:
         return {row[0] for row in result.all()}
 
     async def get_threads_for_polling(self) -> list[EmailThread]:
-        """
-        Return all threads that belong to targets with status='sent'.
-        These are candidates for reply polling.
-        """
-        stmt = (
-            select(EmailThread)
-            .join(
-                EmailThread.outreach_target_id == EmailThread.outreach_target_id
-            )
-        )
-        # Simplified: return all threads; OutreachService filters by status
+        """Return all threads for targets with status='sent'."""
         result = await self._session.execute(select(EmailThread))
         return list(result.scalars().all())
