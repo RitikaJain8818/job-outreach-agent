@@ -14,12 +14,7 @@ logger = get_logger(__name__)
 
 class GmailAgent(BaseAgent):
     """
-    Handles all Gmail operations with full DB persistence:
-
-    mode="send"  — sends an email, creates EmailThread + EmailMessage records,
-                   updates OutreachTarget status to "sent".
-    mode="poll"  — fetches replies for a thread, records new inbound messages,
-                   returns new replies for classification.
+    Handles all Gmail operations with full DB persistence.
     """
 
     def __init__(
@@ -69,22 +64,19 @@ class GmailAgent(BaseAgent):
         except GmailError as e:
             return AgentResult(success=False, agent_name=self.name, error=str(e))
 
-        # Persist thread record
         thread = await self._thread_svc.create_thread(
             outreach_target_id=context.target_id,
             gmail_thread_id=gmail_thread_id,
             subject=subject,
         )
 
-        # Persist outbound message (gmail_message_id = thread_id on first send)
         await self._thread_svc.record_outbound(
             thread_id=thread.id,
-            gmail_message_id=gmail_thread_id,  # first message ID matches thread ID
+            gmail_message_id=gmail_thread_id,
             body_text=body,
             sent_at=datetime.now(UTC),
         )
 
-        # Update target status to "sent"
         await self._outreach_svc.update_target_status(context.target_id, "sent")
 
         logger.info(
@@ -118,7 +110,6 @@ class GmailAgent(BaseAgent):
         except GmailError as e:
             return AgentResult(success=False, agent_name=self.name, error=str(e))
 
-        # Detect only new inbound messages not yet stored
         known_ids = await self._thread_svc.get_known_message_ids(thread_db_id)
         new_replies = [
             m for m in all_messages

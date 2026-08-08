@@ -11,17 +11,7 @@ logger = get_logger(__name__)
 
 class FollowUpAgent(BaseAgent):
     """
-    Generates follow-up emails when a target hasn't replied
-    within the campaign's follow_up_days window.
-
-    Expected context.metadata keys:
-    - original_subject: str
-    - original_body: str
-    - contact_name: str
-    - company_name: str
-    - sender_name: str
-    - follow_up_number: str (int as string, e.g. "1" or "2")
-    - days_since_last_email: str (int as string)
+    Generates follow-up emails when a target hasn't replied.
     """
 
     def __init__(self, llm: LLMProvider) -> None:

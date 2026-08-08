@@ -9,9 +9,6 @@ logger = get_logger(__name__)
 class ResearchAgent(BaseAgent):
     """
     Enriches contact and company data from available sources.
-
-    Phase 1: Stub — returns empty enrichment.
-    Phase 6: Will integrate LinkedIn, Hunter.io, Clearbit, HN Jobs.
     """
 
     @property
@@ -19,8 +16,6 @@ class ResearchAgent(BaseAgent):
         return "ResearchAgent"
 
     async def run(self, context: AgentContext) -> AgentResult:
-        # Phase 1 stub — no external enrichment yet.
-        # Future: fetch LinkedIn data, recent company news, job postings.
         logger.debug("research.stub", target_id=context.target_id)
         return AgentResult(
             success=True,

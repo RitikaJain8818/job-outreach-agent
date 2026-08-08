@@ -13,18 +13,6 @@ logger = get_logger(__name__)
 class MemoryAgent(BaseAgent):
     """
     Reads and writes to the agent_memory table.
-
-    Read mode (default): loads relevant memories and injects them into context.metadata.
-    Write mode: persists outcome and learnings from the completed pipeline.
-
-    Expected context.metadata:
-    - mode: "read" | "write"
-    - scope: str — memory scope to load/write (e.g. "campaign:<id>", "domain:fintech")
-
-    Write mode additionally requires:
-    - memory_key: str
-    - memory_value: str (JSON or text)
-    - source: str
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -54,7 +42,6 @@ class MemoryAgent(BaseAgent):
         result = await self._session.execute(stmt)
         memories = result.scalars().all()
 
-        # Inject memories into context.metadata for downstream agents
         for mem in memories:
             context.metadata[f"memory:{mem.key}"] = mem.value
 

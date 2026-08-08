@@ -16,10 +16,6 @@ logger = get_logger(__name__)
 class ReplyClassifierAgent(BaseAgent):
     """
     Classifies the intent of an inbound email reply using an LLM.
-
-    Expected context.metadata keys:
-    - reply_body: str — the raw text of the reply
-    - original_subject: str — for context
     """
 
     def __init__(self, llm: LLMProvider) -> None:

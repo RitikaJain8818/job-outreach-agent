@@ -35,27 +35,19 @@ class AgentResult:
 class BaseAgent(ABC):
     """
     Abstract base for all agents.
-
-    Enforces:
-    - Named agents (for logging and memory attribution)
-    - A typed run() interface
-    - Consistent entry/exit logging
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Human-readable agent name. Used in logs and AgentMemory.source."""
+        """Human-readable agent name."""
 
     @abstractmethod
     async def run(self, context: AgentContext) -> AgentResult:
-        """Execute the agent's primary task. Must not raise — return AgentResult(success=False) on error."""
+        """Execute the agent's primary task."""
 
     async def execute(self, context: AgentContext) -> AgentResult:
-        """
-        Wraps run() with entry/exit logging.
-        Call this instead of run() directly from the orchestrator.
-        """
+        """Wraps run() with entry/exit logging."""
         logger.info(
             "agent.start",
             agent=self.name,

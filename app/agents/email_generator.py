@@ -13,10 +13,6 @@ logger = get_logger(__name__)
 class EmailGeneratorAgent(BaseAgent):
     """
     Generates a personalized cold outreach email using an LLM.
-
-    Dependencies injected via constructor:
-    - llm: LLMProvider — abstracted LLM client
-    - contact_service: ContactService — fetches contact + company data
     """
 
     def __init__(self, llm: LLMProvider, contact_service: ContactService) -> None:
@@ -28,7 +24,6 @@ class EmailGeneratorAgent(BaseAgent):
         return "EmailGeneratorAgent"
 
     async def run(self, context: AgentContext) -> AgentResult:
-        # Fetch contact + company for personalization
         contact = await self._contact_svc.get_with_company(context.contact_id)
         if contact is None:
             return AgentResult(

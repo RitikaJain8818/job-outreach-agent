@@ -15,18 +15,6 @@ logger = get_logger(__name__)
 class OrchestratorAgent(BaseAgent):
     """
     Coordinates the outreach send pipeline for a single OutreachTarget.
-
-    Pipeline:
-        MemoryAgent (read) → ResearchAgent → EmailGeneratorAgent
-        → GmailAgent (send) → MemoryAgent (write outcome)
-
-    The orchestrator:
-    - Aborts on critical failures (email gen, gmail send)
-    - Continues on non-critical failures (memory read, research)
-    - Bridges EmailGeneratorAgent output into GmailAgent metadata
-    - Records outcome into MemoryAgent
-
-    Reply classification and follow-ups run as separate scheduled pipelines.
     """
 
     def __init__(
@@ -52,15 +40,12 @@ class OrchestratorAgent(BaseAgent):
     async def run(self, context: AgentContext) -> AgentResult:
         results: dict[str, AgentResult] = {}
 
-        # 1. Load memory context (non-critical)
         context.metadata["mode"] = "read"
         context.metadata["scope"] = f"campaign:{context.campaign_id}"
         results["memory_read"] = await self._memory.execute(context)
 
-        # 2. Enrich contact/company data (non-critical)
         results["research"] = await self._research.execute(context)
 
-        # 3. Generate personalized email (critical)
         results["email_gen"] = await self._email_gen.execute(context)
         if not results["email_gen"].success:
             return AgentResult(
@@ -69,14 +54,11 @@ class OrchestratorAgent(BaseAgent):
                 error=f"Email generation failed: {results['email_gen'].error}",
             )
 
-        # ── Bridge: forward email content into GmailAgent metadata ──
         email_output = results["email_gen"].output
         context.metadata["mode"] = "send"
         context.metadata["email_subject"] = str(email_output.get("subject", ""))
         context.metadata["email_body"] = str(email_output.get("body", ""))
-        # to_email must be set by the caller in context.metadata before orchestrator runs
 
-        # 4. Send email via Gmail (critical)
         results["gmail_send"] = await self._gmail.execute(context)
         if not results["gmail_send"].success:
             return AgentResult(
@@ -87,7 +69,6 @@ class OrchestratorAgent(BaseAgent):
 
         gmail_output = results["gmail_send"].output
 
-        # 5. Write outcome to memory (non-critical)
         context.metadata["mode"] = "write"
         context.metadata["scope"] = f"campaign:{context.campaign_id}"
         context.metadata["memory_key"] = f"sent:target:{context.target_id}"
