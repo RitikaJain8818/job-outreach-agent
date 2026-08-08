@@ -12,3 +12,7 @@ dist/
 *.egg-info/
 .venv/
 venv/
+RITIKA_JAIN_RESUME
+RITIKA_JAIN_RESUME.pdf
+*.pdf
+resume*

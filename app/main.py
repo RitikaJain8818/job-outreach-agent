@@ -10,7 +10,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import engine
-from app.models import *  # noqa: F401, F403 — ensures all models are imported for Alembic
+from app.models import *  # noqa: F401, F403
 from app.db.base import Base
 
 logger = get_logger(__name__)
@@ -18,11 +18,9 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application startup and shutdown lifecycle."""
     configure_logging(settings.log_level)
     logger.info("app.starting", env=settings.app_env, version=settings.app_version)
 
-    # In development with SQLite, auto-create tables so the app works without Alembic
     if settings.is_development and settings.is_sqlite:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
