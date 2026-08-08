@@ -1,29 +1,11 @@
 """
 Gmail OAuth2 Setup Script
-
-Run this once before using the application to authorize Gmail access.
-It will open a browser window for Google consent and save token.json.
-
-Usage:
-    python scripts/gmail_auth.py
-
-Prerequisites:
-    1. Go to Google Cloud Console → APIs & Services → Credentials
-    2. Create an OAuth 2.0 Client ID (Desktop application)
-    3. Download credentials.json and place it in the project root
-    4. Enable Gmail API for your project
-
-After running this script:
-    - token.json will be created in the project root
-    - The app can now send/read emails without re-authorizing
-    - token.json is auto-refreshed when it expires
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-# Allow running from repo root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.config import settings

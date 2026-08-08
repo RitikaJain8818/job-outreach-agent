@@ -1,13 +1,5 @@
 """
 Quick smoke test — sends a real test email via Gmail API.
-
-Usage:
-    python scripts/test_send.py --to ritikajain49026@gmail.com
-
-This validates:
-  1. token.json is valid and can authenticate
-  2. GmailClient.send() works end-to-end
-  3. Email actually arrives in your inbox
 """
 from __future__ import annotations
 
