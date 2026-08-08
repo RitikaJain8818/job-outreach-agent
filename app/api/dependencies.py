@@ -1,14 +1,5 @@
 """
 Dependency injection for agents.
-
-Agents are constructed here with their required services and clients.
-FastAPI routes use these as Depends() to get fully assembled agents.
-
-Design rationale:
-- GmailClient is expensive to auth; in Phase 2 it's built once and cached.
-- In Phase 1 (no real Gmail creds), routes that use the orchestrator will
-  fail at runtime until credentials are configured — this is expected.
-- LLM provider is configured based on settings.llm_provider.
 """
 from __future__ import annotations
 
@@ -36,10 +27,6 @@ from app.services.outreach_service import OutreachService
 
 
 def get_llm_provider() -> LLMProvider:
-    """
-    Build, cache-wrap, and return the configured LLM provider.
-    Raises ConfigurationError if the provider is not configured.
-    """
     if settings.llm_provider == "gemini":
         from app.integrations.llm.gemini import GeminiProvider
         if not settings.gemini_api_key:
@@ -59,10 +46,6 @@ def get_llm_provider() -> LLMProvider:
 
 
 def get_gmail_client() -> "GmailClient":  # type: ignore[name-defined]  # noqa: F821
-    """
-    Build and return an authenticated GmailClient.
-    Raises GmailAuthError if credentials are not configured.
-    """
     from app.integrations.gmail.auth import get_gmail_credentials
     from app.integrations.gmail.client import GmailClient
 
@@ -76,12 +59,6 @@ def get_gmail_client() -> "GmailClient":  # type: ignore[name-defined]  # noqa: 
 def get_orchestrator(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> OrchestratorAgent:
-    """
-    Assemble and return a fully wired OrchestratorAgent.
-
-    All dependencies are constructed fresh per request (stateless agents).
-    GmailClient auth happens here — will raise if credentials are absent.
-    """
     llm = get_llm_provider()
     gmail_client = get_gmail_client()
 

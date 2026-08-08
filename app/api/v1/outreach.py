@@ -16,8 +16,6 @@ from app.services.outreach_service import OutreachService
 router = APIRouter(prefix="/outreach", tags=["Outreach"])
 
 
-# ─── Request / Response Schemas ──────────────────────────────────────────────
-
 class CampaignCreate(BaseModel):
     name: str
     sender_name: str
@@ -63,8 +61,6 @@ class RunResult(BaseModel):
     skipped: int
     errors: list[str]
 
-
-# ─── Endpoints ───────────────────────────────────────────────────────────────
 
 @router.post("/campaigns", response_model=CampaignResponse, status_code=status.HTTP_201_CREATED)
 async def create_campaign(
@@ -119,16 +115,6 @@ async def run_campaign(
     session: AsyncSession = Depends(get_session),
     orchestrator: OrchestratorAgent = Depends(get_orchestrator),
 ) -> RunResult:
-    """
-    Execute the outreach pipeline for all pending targets in this campaign.
-
-    For each target:
-    1. Builds AgentContext with campaign + contact metadata
-    2. Runs OrchestratorAgent (memory → research → email gen → gmail send)
-    3. Records success/failure per target
-
-    Errors are collected and returned — one target failure does not stop others.
-    """
     outreach_svc = OutreachService(session)
     contact_svc = ContactService(session)
 
@@ -158,7 +144,6 @@ async def run_campaign(
             metadata={
                 "sender_name": campaign.sender_name or settings.sender_name,
                 "sender_email": campaign.sender_email or settings.sender_email,
-                # Pull richer personalization from settings
                 "sender_background": settings.sender_background or campaign.goal or "",
                 "to_email": contact.email,
                 "tone": settings.sender_tone,
