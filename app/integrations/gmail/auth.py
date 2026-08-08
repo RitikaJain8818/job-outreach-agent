@@ -5,7 +5,6 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Gmail API scopes — must match what was granted during OAuth consent
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -14,13 +13,6 @@ SCOPES = [
 
 
 def get_gmail_credentials(credentials_file: str, token_file: str) -> object:
-    """
-    Load OAuth2 credentials. If token.json exists, use it.
-    If expired, refresh. If missing, run the browser OAuth flow.
-
-    Returns a google.oauth2.credentials.Credentials object.
-    Raises GmailAuthError on any auth failure.
-    """
     try:
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
@@ -67,6 +59,6 @@ def get_gmail_credentials(credentials_file: str, token_file: str) -> object:
 def _save_token(creds: object, token_file: str) -> None:
     try:
         with open(token_file, "w") as f:
-            f.write(creds.to_json())  # type: ignore[attr-defined]
+            f.write(creds.to_json())
     except OSError as e:
         logger.warning("gmail.token_save_failed", error=str(e))

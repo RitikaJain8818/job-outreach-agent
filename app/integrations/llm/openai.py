@@ -20,9 +20,6 @@ DEFAULT_MODEL = "gpt-4o-mini"
 class OpenAIProvider(LLMProvider):
     """
     OpenAI provider using the Chat Completions API.
-
-    Uses gpt-4o-mini by default (fast + cheap).
-    Override model in constructor (e.g. "gpt-4o") for higher quality.
     """
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL) -> None:
@@ -75,7 +72,6 @@ class OpenAIProvider(LLMProvider):
         return payload
 
     async def _call(self, payload: dict) -> tuple[str, int]:
-        """Returns (response_text, total_tokens_used)."""
         try:
             response = await self._client.post("/chat/completions", json=payload)
             response.raise_for_status()

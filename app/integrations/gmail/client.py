@@ -5,7 +5,6 @@ import base64
 import email as email_lib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from functools import partial
 
 from app.core.exceptions import GmailError, GmailRateLimitError
 from app.core.logging import get_logger
@@ -14,23 +13,13 @@ logger = get_logger(__name__)
 
 
 class GmailClient:
-    """
-    Async-friendly wrapper around the Gmail REST API.
-
-    The google-api-python-client is sync, so we run its calls in a thread pool
-    via asyncio.to_thread() to avoid blocking the event loop.
-    """
+    """Async-friendly wrapper around the Gmail REST API."""
 
     def __init__(self, service: object) -> None:
-        """
-        :param service: Authenticated Gmail API service object
-                        (from googleapiclient.discovery.build)
-        """
-        self._service = service  # type: ignore[assignment]
+        self._service = service
 
     @classmethod
     def from_credentials(cls, credentials: object) -> "GmailClient":
-        """Build a GmailClient from authenticated credentials."""
         try:
             from googleapiclient.discovery import build
         except ImportError as e:
@@ -41,10 +30,6 @@ class GmailClient:
         return cls(service)
 
     async def send(self, to: str, subject: str, body: str, html: str | None = None) -> str:
-        """
-        Send an email. Returns the Gmail thread ID.
-        Raises GmailError or GmailRateLimitError on failure.
-        """
         message = self._build_message(to=to, subject=subject, body=body, html=html)
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
@@ -60,10 +45,6 @@ class GmailClient:
         return thread_id
 
     async def get_replies(self, thread_id: str) -> list[dict]:
-        """
-        Fetch all messages in a thread. Returns list of message dicts with
-        keys: gmail_message_id, body_text, direction.
-        """
         try:
             thread = await asyncio.to_thread(
                 self._service.users().threads().get(userId="me", id=thread_id, format="full").execute
@@ -78,7 +59,7 @@ class GmailClient:
             result.append({
                 "gmail_message_id": msg["id"],
                 "body_text": body_text,
-                "direction": "inbound",  # Caller determines direction based on sender
+                "direction": "inbound",
             })
 
         return result
@@ -100,7 +81,6 @@ class GmailClient:
         return message
 
     def _extract_body(self, message: dict) -> str:
-        """Extract plain text body from a Gmail message dict."""
         payload = message.get("payload", {})
         parts = payload.get("parts", [])
 
@@ -110,7 +90,6 @@ class GmailClient:
                 if data:
                     return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
 
-        # Fallback: single-part message
         data = payload.get("body", {}).get("data", "")
         if data:
             return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
@@ -118,7 +97,6 @@ class GmailClient:
         return ""
 
     def _handle_api_error(self, error: Exception) -> None:
-        """Classify and re-raise Gmail API errors with typed exceptions."""
         err_str = str(error)
         if "429" in err_str or "rateLimitExceeded" in err_str:
             raise GmailRateLimitError(f"Gmail rate limit exceeded: {error}") from error

@@ -20,9 +20,6 @@ DEFAULT_MODEL = "gemini-3.6-flash"
 class GeminiProvider(LLMProvider):
     """
     Google Gemini provider using the REST API via httpx.
-
-    Uses gemini-1.5-flash by default (fast + cheap).
-    Override model in constructor for higher-quality use cases.
     """
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL) -> None:
@@ -46,7 +43,6 @@ class GeminiProvider(LLMProvider):
         payload = self._build_payload(system, augmented_user)
         raw, tokens_used = await self._call(payload)
 
-        # Strip markdown code fences if present
         clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         try:
             result = schema.model_validate_json(clean)
@@ -55,7 +51,6 @@ class GeminiProvider(LLMProvider):
                 f"Failed to parse Gemini response as {schema.__name__}: {e}\nRaw: {clean[:300]}"
             ) from e
 
-        # Inject real token count if the schema supports it
         if hasattr(result, "tokens_used"):
             result.tokens_used = tokens_used
 
@@ -69,10 +64,6 @@ class GeminiProvider(LLMProvider):
         }
 
     async def _call(self, payload: dict) -> tuple[str, int]:
-        """
-        Returns (response_text, total_tokens_used).
-        Token count extracted from usageMetadata in the Gemini response.
-        """
         url = f"{GEMINI_API_BASE}/models/{self._model}:generateContent?key={self._api_key}"
         try:
             response = await self._client.post(url, json=payload)
@@ -92,15 +83,8 @@ class GeminiProvider(LLMProvider):
         except (KeyError, IndexError) as e:
             raise LLMProviderError(f"Unexpected Gemini response shape: {data}") from e
 
-        # Extract real token usage from Gemini response
         tokens_used = data.get("usageMetadata", {}).get("totalTokenCount", 0)
-
-        logger.debug(
-            "gemini.response",
-            model=self._model,
-            chars=len(text),
-            tokens=tokens_used,
-        )
+        logger.debug("gemini.response", model=self._model, chars=len(text), tokens=tokens_used)
         return text, tokens_used
 
     async def close(self) -> None:
