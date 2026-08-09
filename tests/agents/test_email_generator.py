@@ -78,3 +78,30 @@ async def test_email_generator_fails_for_missing_contact(
 
     assert result.success is False
     assert "not found" in (result.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_email_generator_template_mode() -> None:
+    agent = EmailGeneratorAgent()
+    context = AgentContext(
+        campaign_id="camp-1",
+        target_id="target-1",
+        contact_id="con-1",
+        company_id="co-1",
+        metadata={
+            "use_template": True,
+            "first_name": "Jane",
+            "company_name": "Acme Corp",
+            "job_title": "Staff Engineer",
+            "sender_name": "Ritika Jain",
+            "sender_background": "Software Engineering & LLMs",
+        },
+    )
+
+    result = await agent.execute(context)
+
+    assert result.success is True
+    assert result.tokens_used == 0
+    assert "Acme Corp" in str(result.output["subject"])
+    assert "Jane" in str(result.output["body"])
+    assert "Ritika Jain" in str(result.output["body"])
