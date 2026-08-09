@@ -28,13 +28,32 @@ from app.services.outreach_service import OutreachService
 
 def get_llm_provider() -> LLMProvider:
     if settings.llm_provider == "gemini":
+        from app.integrations.llm.fallback import FallbackLLMProvider
         from app.integrations.llm.gemini import GeminiProvider
+
         if not settings.gemini_api_key:
             raise ConfigurationError("GEMINI_API_KEY is not set in environment")
-        return CachingLLMProvider(GeminiProvider(api_key=settings.gemini_api_key, model=settings.gemini_model))
+
+        primary = GeminiProvider(api_key=settings.gemini_api_key, model=settings.gemini_model)
+        fallbacks: list[LLMProvider] = []
+
+        # Add fallback Gemini model if configured (e.g. gemini-3.1-flash-lite)
+        if settings.llm_fallback_provider and settings.llm_fallback_provider != settings.gemini_model:
+            fallbacks.append(
+                GeminiProvider(api_key=settings.gemini_api_key, model=settings.llm_fallback_provider)
+            )
+
+        # Add OpenAI as fallback if API key is provided
+        if settings.openai_api_key:
+            from app.integrations.llm.openai import OpenAIProvider
+            fallbacks.append(OpenAIProvider(api_key=settings.openai_api_key))
+
+        provider = FallbackLLMProvider(primary, fallbacks) if fallbacks else primary
+        return CachingLLMProvider(provider)
 
     if settings.llm_provider == "openai":
         from app.integrations.llm.openai import OpenAIProvider
+
         if not settings.openai_api_key:
             raise ConfigurationError("OPENAI_API_KEY is not set in environment")
         return CachingLLMProvider(OpenAIProvider(api_key=settings.openai_api_key))
