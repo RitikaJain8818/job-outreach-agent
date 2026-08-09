@@ -105,6 +105,16 @@ class EmailThreadService:
         result = await self._session.execute(stmt)
         return result.scalars().first()
 
+    async def get_thread_by_gmail_id(self, gmail_thread_id: str) -> EmailThread | None:
+        """Return EmailThread by gmail_thread_id."""
+        stmt = (
+            select(EmailThread)
+            .where(EmailThread.gmail_thread_id == gmail_thread_id)
+            .options(selectinload(EmailThread.messages))
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().first()
+
     async def get_known_message_ids(self, thread_id: str) -> set[str]:
         """Return gmail_message_ids already stored — used to detect new replies."""
         stmt = select(EmailMessage.gmail_message_id).where(

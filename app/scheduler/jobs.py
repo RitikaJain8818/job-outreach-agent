@@ -218,7 +218,7 @@ async def _poll_replies_async(engine) -> None:
 
 def poll_replies_job(engine) -> None:
     """APScheduler entry point."""
-    asyncio.get_event_loop().run_until_complete(_poll_replies_async(engine))
+    asyncio.run(_poll_replies_async(engine))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -346,4 +346,4 @@ async def _send_follow_ups_async(engine) -> None:
 
 def send_follow_ups_job(engine) -> None:
     """APScheduler entry point."""
-    asyncio.get_event_loop().run_until_complete(_send_follow_ups_async(engine))
+    asyncio.run(_send_follow_ups_async(engine))
