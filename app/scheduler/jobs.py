@@ -3,7 +3,8 @@ Background scheduler jobs — Phase 4.
 
 Two jobs:
   - poll_replies_job: Polls Gmail for new inbound replies on all active threads,
-    classifies each new reply via LLM, and updates OutreachTarget status in DB.
+    classifies each new reply via LLM, updates OutreachTarget status, and
+    automatically triggers InterestedReplyAgent if the recruiter expresses interest.
   - send_follow_ups_job: Finds targets due for a follow-up, generates a follow-up
     email via FollowUpAgent, sends via GmailAgent, and bumps follow_up_count.
 
@@ -64,11 +65,11 @@ def _get_gmail_client():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Job 1: Poll replies + classify
+# Job 1: Poll replies + classify + auto-respond to interested contacts
 # ──────────────────────────────────────────────────────────────────────────────
 
 async def _poll_replies_async(engine) -> None:
-    """Async implementation of reply polling and classification."""
+    """Async implementation of reply polling, classification, and immediate interested auto-reply."""
     session_factory = _make_session_factory(engine)
     llm = _get_llm()
     gmail_client = _get_gmail_client()
@@ -157,6 +158,53 @@ async def _poll_replies_async(engine) -> None:
                         classification=classification,
                         confidence=confidence,
                     )
+
+                    # Auto-reply immediately if the recruiter expressed interest
+                    if classification == "interested":
+                        from app.agents.interested_reply import InterestedReplyAgent
+                        from app.models.outreach import OutreachTarget
+                        contact_svc = ContactService(session)
+                        target_obj = await session.get(OutreachTarget, target_id)
+                        contact_obj = await contact_svc.get_with_company(target_obj.contact_id) if target_obj else None
+
+                        if contact_obj:
+                            reply_agent = InterestedReplyAgent(llm=llm)
+                            reply_ctx = AgentContext(
+                                campaign_id=_DUMMY_CAMPAIGN_ID,
+                                target_id=target_id,
+                                contact_id=contact_obj.id,
+                                company_id=contact_obj.company_id or "",
+                                metadata={
+                                    "sender_name": settings.sender_name or "Applicant",
+                                    "contact_name": contact_obj.full_name,
+                                    "company_name": contact_obj.company.name if contact_obj.company else "",
+                                    "original_subject": thread.subject,
+                                    "recruiter_message": msg.body_text or "",
+                                },
+                            )
+                            reply_res = await reply_agent.execute(reply_ctx)
+                            if reply_res.success:
+                                auto_subj = str(reply_res.output.get("subject", f"Re: {thread.subject}"))
+                                auto_body = str(reply_res.output.get("body", ""))
+                                send_ctx = AgentContext(
+                                    campaign_id=_DUMMY_CAMPAIGN_ID,
+                                    target_id=target_id,
+                                    contact_id=contact_obj.id,
+                                    company_id=contact_obj.company_id or "",
+                                    metadata={
+                                        "mode": "send",
+                                        "to_email": contact_obj.email,
+                                        "email_subject": auto_subj,
+                                        "email_body": auto_body,
+                                    },
+                                )
+                                send_res = await gmail_agent.execute(send_ctx)
+                                if send_res.success:
+                                    logger.info(
+                                        "scheduler.interested_auto_reply_sent",
+                                        target_id=target_id,
+                                        to=contact_obj.email,
+                                    )
 
             except Exception as exc:  # noqa: BLE001
                 logger.error(
