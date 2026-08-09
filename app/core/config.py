@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     sender_tone: str = "professional"  # "professional" | "casual" | "concise"
 
     # Scheduler
-    scheduler_interval_minutes: int = 30  # How often to poll replies and send follow-ups
+    scheduler_interval_minutes: int = 720  # Runs twice a day (every 12 hours)
 
     @property
     def is_development(self) -> bool:
