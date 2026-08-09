@@ -34,11 +34,7 @@ class EmailThreadService:
         self._session.add(thread)
         await self._session.commit()
         await self._session.refresh(thread)
-        logger.info(
-            "thread.created",
-            thread_id=thread.id,
-            gmail_thread_id=gmail_thread_id,
-        )
+        logger.info("thread.created", thread_id=thread.id, gmail_thread_id=gmail_thread_id)
         return thread
 
     async def record_outbound(
@@ -90,6 +86,16 @@ class EmailThreadService:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_thread_by_target_id(self, outreach_target_id: str) -> EmailThread | None:
+        """Return the EmailThread for a given outreach target (with messages eagerly loaded)."""
+        stmt = (
+            select(EmailThread)
+            .where(EmailThread.outreach_target_id == outreach_target_id)
+            .options(selectinload(EmailThread.messages))
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_known_message_ids(self, thread_id: str) -> set[str]:
         """Return gmail_message_ids already stored — used to detect new replies."""
         stmt = select(EmailMessage.gmail_message_id).where(
@@ -99,6 +105,48 @@ class EmailThreadService:
         return {row[0] for row in result.all()}
 
     async def get_threads_for_polling(self) -> list[EmailThread]:
-        """Return all threads for targets with status='sent'."""
+        """Return all threads (legacy — use get_threads_for_active_targets for Phase 4)."""
         result = await self._session.execute(select(EmailThread))
+        return list(result.scalars().all())
+
+    # ── Phase 4 additions ───────────────────────────────────────────────────────────
+
+    async def update_message_classification(
+        self,
+        message_id: str,
+        classification: str,
+        confidence: float,
+    ) -> None:
+        """Persist reply classification result onto an EmailMessage row."""
+        msg = await self._session.get(EmailMessage, message_id)
+        if msg is None:
+            logger.warning("thread_svc.message_not_found", message_id=message_id)
+            return
+        msg.classification = classification
+        msg.classification_confidence = confidence
+        await self._session.commit()
+        logger.info(
+            "message.classified",
+            message_id=message_id,
+            classification=classification,
+            confidence=confidence,
+        )
+
+    async def get_threads_for_active_targets(self) -> list[EmailThread]:
+        """
+        Return EmailThread rows whose outreach_target has status='sent'.
+        Used by the scheduler poll-replies job.
+        """
+        from app.models.outreach import OutreachTarget  # local import avoids circular
+
+        stmt = (
+            select(EmailThread)
+            .join(
+                OutreachTarget,
+                EmailThread.outreach_target_id == OutreachTarget.id,
+            )
+            .where(OutreachTarget.status == "sent")
+            .options(selectinload(EmailThread.messages))
+        )
+        result = await self._session.execute(stmt)
         return list(result.scalars().all())
