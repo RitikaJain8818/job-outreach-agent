@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     sender_background: str = ""  # e.g. "ML Engineer with 5 years exp in Python and LLMs"
     sender_tone: str = "professional"  # "professional" | "casual" | "concise"
 
+    # Scheduler
+    scheduler_interval_minutes: int = 30  # How often to poll replies and send follow-ups
+
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
