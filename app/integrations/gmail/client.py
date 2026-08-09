@@ -29,20 +29,34 @@ class GmailClient:
         service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
         return cls(service)
 
-    async def send(self, to: str, subject: str, body: str, html: str | None = None) -> str:
-        message = self._build_message(to=to, subject=subject, body=body, html=html)
+    async def send(
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        html: str | None = None,
+        thread_id: str | None = None,
+        in_reply_to: str | None = None,
+    ) -> str:
+        message = self._build_message(
+            to=to, subject=subject, body=body, html=html, in_reply_to=in_reply_to
+        )
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+        payload: dict[str, str] = {"raw": raw}
+        if thread_id:
+            payload["threadId"] = thread_id
 
         try:
             result = await asyncio.to_thread(
-                self._service.users().messages().send(userId="me", body={"raw": raw}).execute
+                self._service.users().messages().send(userId="me", body=payload).execute
             )
         except Exception as e:
             self._handle_api_error(e)
 
-        thread_id: str = result.get("threadId", "")
-        logger.info("gmail.sent", to=to, thread_id=thread_id, subject=subject[:60])
-        return thread_id
+        res_thread_id: str = result.get("threadId", thread_id or "")
+        logger.info("gmail.sent", to=to, thread_id=res_thread_id, subject=subject[:60])
+        return res_thread_id
 
     async def get_replies(self, thread_id: str) -> list[dict]:
         try:
@@ -65,12 +79,20 @@ class GmailClient:
         return result
 
     def _build_message(
-        self, to: str, subject: str, body: str, html: str | None = None
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        html: str | None = None,
+        in_reply_to: str | None = None,
     ) -> MIMEMultipart | MIMEText:
         if html:
             message = MIMEMultipart("alternative")
             message["to"] = to
             message["subject"] = subject
+            if in_reply_to:
+                message["In-Reply-To"] = in_reply_to
+                message["References"] = in_reply_to
             message.attach(MIMEText(body, "plain"))
             message.attach(MIMEText(html, "html"))
             return message
@@ -78,6 +100,9 @@ class GmailClient:
         message = MIMEText(body, "plain")
         message["to"] = to
         message["subject"] = subject
+        if in_reply_to:
+            message["In-Reply-To"] = in_reply_to
+            message["References"] = in_reply_to
         return message
 
     def _extract_body(self, message: dict) -> str:

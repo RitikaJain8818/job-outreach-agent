@@ -49,6 +49,7 @@ class GmailAgent(BaseAgent):
         subject = context.metadata.get("email_subject", "")
         body = context.metadata.get("email_body", "")
         to_email = context.metadata.get("to_email", "")
+        existing_gmail_thread_id = context.metadata.get("gmail_thread_id")
 
         if not all([subject, body, to_email]):
             return AgentResult(
@@ -57,18 +58,28 @@ class GmailAgent(BaseAgent):
                 error="Missing email_subject, email_body, or to_email in context.metadata",
             )
 
+        # Check if DB thread already exists for this target
+        existing_thread = await self._thread_svc.get_thread_by_target_id(context.target_id)
+        target_gmail_thread_id = existing_gmail_thread_id or (existing_thread.gmail_thread_id if existing_thread else None)
+
         try:
             gmail_thread_id = await self._gmail.send(
-                to=to_email, subject=subject, body=body
+                to=to_email,
+                subject=subject,
+                body=body,
+                thread_id=target_gmail_thread_id,
             )
         except GmailError as e:
             return AgentResult(success=False, agent_name=self.name, error=str(e))
 
-        thread = await self._thread_svc.create_thread(
-            outreach_target_id=context.target_id,
-            gmail_thread_id=gmail_thread_id,
-            subject=subject,
-        )
+        if existing_thread:
+            thread = existing_thread
+        else:
+            thread = await self._thread_svc.create_thread(
+                outreach_target_id=context.target_id,
+                gmail_thread_id=gmail_thread_id,
+                subject=subject,
+            )
 
         await self._thread_svc.record_outbound(
             thread_id=thread.id,
