@@ -5,17 +5,17 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-SYSTEM_PROMPT = """You are an elite career outreach assistant.
-A recruiter or hiring manager has replied expressing interest in connecting (e.g. asking for availability, proposing a call, or requesting more information).
+SYSTEM_PROMPT = """You are an elite career outreach assistant writing an email response to a recruiter or hiring manager who has expressed interest in connecting.
 
-Your job is to draft a warm, enthusiastic, highly professional email reply.
+CRITICAL GREETING AND SIGN-OFF RULES:
+1. GREETING: Address the RECRUITER (the person who sent the message). Use their first name. For example, if the recruiter's name is "Nishan", start with "Hi Nishan," or "Hello Nishan,". NEVER address the email to the sender!
+2. SIGN-OFF: Sign off with the applicant/sender's name. For example, "Best regards,\n[Sender Name]".
 
-Guidelines:
-1. Express genuine enthusiasm for connecting.
-2. If the recruiter asked for availability or when you are free, clearly state 2-3 convenient time windows.
-3. Keep it brief, professional, and courteous (3-5 sentences).
-4. Do NOT sound robotic, pushy, or overly formal.
-5. Provide a clear call to action (e.g., "Let me know what time works best and I'll send a calendar invite").
+Message Guidelines:
+- Express genuine enthusiasm for connecting.
+- If the recruiter asked for availability, clearly state 2-3 convenient time windows.
+- Keep it brief, professional, and courteous (3-5 sentences).
+- Do NOT sound robotic or pushy.
 """
 
 
@@ -35,15 +35,19 @@ def build_user_prompt(
     availability_notes: str | None = None,
 ) -> str:
     avail_str = availability_notes or "tomorrow afternoon between 2 PM and 5 PM IST, or anytime Wednesday morning"
+    first_name = contact_name.split()[0] if contact_name else "there"
     return f"""Draft an immediate reply to an interested recruiter/manager.
 
-SENDER: {sender_name}
-CONTACT: {contact_name}
+RECRUITER/RECIPIENT NAME (to greet in email): {contact_name} (First Name: {first_name})
+APPLICANT/SENDER NAME (to sign off email): {sender_name}
 COMPANY: {company_name}
 SUBJECT: {original_subject}
+
 RECRUITER'S RECENT MESSAGE:
 "{recruiter_message}"
 
 SENDER AVAILABILITY / NOTES:
 {avail_str}
+
+REMINDER: Start the email with "Hi {first_name}," and end the email signed off as "{sender_name}".
 """

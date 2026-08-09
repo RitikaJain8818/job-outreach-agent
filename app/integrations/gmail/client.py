@@ -105,7 +105,7 @@ class GmailClient:
         )
         return res_thread_id
 
-    async def get_replies(self, thread_id: str) -> list[dict]:
+    async def get_replies(self, thread_id: str, sender_email: str | None = None) -> list[dict]:
         try:
             thread = await asyncio.to_thread(
                 self._service.users().threads().get(userId="me", id=thread_id, format="full").execute
@@ -113,14 +113,27 @@ class GmailClient:
         except Exception as e:
             self._handle_api_error(e)
 
+        from app.core.config import settings
+        sender_clean = (sender_email or settings.sender_email or "").lower().strip()
+
         messages = thread.get("messages", [])
         result = []
         for msg in messages:
+            headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+            from_header = headers.get("from", "").lower()
+            label_ids = msg.get("labelIds", [])
+
+            if "SENT" in label_ids or (sender_clean and sender_clean in from_header):
+                direction = "outbound"
+            else:
+                direction = "inbound"
+
             body_text = self._extract_body(msg)
             result.append({
                 "gmail_message_id": msg["id"],
                 "body_text": body_text,
-                "direction": "inbound",
+                "direction": direction,
+                "from": headers.get("from", ""),
             })
 
         return result

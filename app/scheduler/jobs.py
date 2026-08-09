@@ -159,15 +159,17 @@ async def _poll_replies_async(engine) -> None:
                         confidence=confidence,
                     )
 
-                    # Auto-reply immediately if the recruiter expressed interest
-                    if classification == "interested":
+                    # Auto-reply immediately ONLY if the message is an inbound reply from the recruiter
+                    if classification == "interested" and msg.direction == "inbound":
                         from app.agents.interested_reply import InterestedReplyAgent
                         from app.models.outreach import OutreachTarget
                         contact_svc = ContactService(session)
                         target_obj = await session.get(OutreachTarget, target_id)
                         contact_obj = await contact_svc.get_with_company(target_obj.contact_id) if target_obj else None
 
-                        if contact_obj:
+                        # Safety Check: Verify the latest message on thread is inbound from recruiter
+                        latest_msg = thread.messages[-1] if thread.messages else None
+                        if contact_obj and latest_msg and latest_msg.direction == "inbound":
                             reply_agent = InterestedReplyAgent(llm=llm)
                             reply_ctx = AgentContext(
                                 campaign_id=_DUMMY_CAMPAIGN_ID,
@@ -175,7 +177,7 @@ async def _poll_replies_async(engine) -> None:
                                 contact_id=contact_obj.id,
                                 company_id=contact_obj.company_id or "",
                                 metadata={
-                                    "sender_name": settings.sender_name or "Applicant",
+                                    "sender_name": settings.sender_name or "Ritika Jain",
                                     "contact_name": contact_obj.full_name,
                                     "company_name": contact_obj.company.name if contact_obj.company else "",
                                     "original_subject": thread.subject,
@@ -196,6 +198,7 @@ async def _poll_replies_async(engine) -> None:
                                         "to_email": contact_obj.email,
                                         "email_subject": auto_subj,
                                         "email_body": auto_body,
+                                        "gmail_thread_id": thread.gmail_thread_id,
                                     },
                                 )
                                 send_res = await gmail_agent.execute(send_ctx)
