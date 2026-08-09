@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 SYSTEM_PROMPT = """You are an elite career outreach assistant writing an email response to a recruiter or hiring manager who has expressed interest in connecting.
 
 CRITICAL GREETING AND SIGN-OFF RULES:
-1. GREETING: Address the RECRUITER (the person who sent the message). Use their first name. For example, if the recruiter's name is "Nishan", start with "Hi Nishan," or "Hello Nishan,". NEVER address the email to the sender!
+1. GREETING: Address the RECRUITER (the person who sent the message). Use their first name. For example, if the recruiter's name is "Alex", start with "Hi Alex," or "Hello Alex,". NEVER address the email to the sender!
 2. SIGN-OFF: Sign off with the applicant/sender's name. For example, "Best regards,\n[Sender Name]".
 
 Message Guidelines:

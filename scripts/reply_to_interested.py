@@ -1,5 +1,5 @@
 """
-Script to send an immediate AI response to an interested target (Nishan Mazumdar).
+Script to send an immediate AI response to an interested target.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 
 async def main():
-    print("\n🚀 Replying to Interested Target (Nishan Mazumdar)... \n")
+    print("\n🚀 Replying to Interested Target...\n")
     print(f"🔹 Gemini Model: {settings.gemini_model}")
     print(f"🔹 Sender Identity: {settings.sender_name} ({settings.sender_email})")
 
