@@ -1,6 +1,6 @@
 # 🚀 Autonomous AI Job Outreach Agent
 
-An enterprise-grade, multi-agent AI system built to automate, personalize, and orchestrate cold job outreach at scale. Built with **FastAPI**, **Async SQLAlchemy 2.0**, **Google Gemini 3.6 Flash / OpenAI GPT-4o**, and **Gmail API**.
+An enterprise-grade, multi-agent AI system built to automate, personalize, and orchestrate cold job outreach at scale. Built with **FastAPI**, **Async SQLAlchemy 2.0**, **APScheduler**, **Google Gemini (3.5-Flash-Lite / 3.1-Flash-Lite)**, **OpenAI GPT-4o**, and **Gmail API**.
 
 ---
 
@@ -10,13 +10,15 @@ An enterprise-grade, multi-agent AI system built to automate, personalize, and o
 - **Manual Outreach is Slow & Disjointed**: Job seekers spend hours manually researching companies, finding contacts, drafting customized emails, and manually tracking sent threads in spreadsheets.
 - **Generic Templates Get Ignored**: Recruiter and hiring manager inboxes are flooded with generic, copy-pasted cold emails that lack real personalization or relevance.
 - **Missed Follow-Ups**: Over 70% of responses come from timely follow-up emails, yet job seekers frequently forget to follow up or lose track of conversation states across multiple threads.
+- **API Quota Exhaustion & Rate Limits**: Relying purely on expensive high-latency LLM calls for every single initial email drains rate limits and increases costs.
 
 ### The Solution
 The **AI Job Outreach Agent** automates the entire outreach workflow autonomously:
-1. **Context-Aware Personalization**: Generates highly relevant, non-spammy cold emails tailored specifically to the target contact, company description, industry, and job role.
+1. **Hybrid Email Generation**: Choose between AI-synthesized cold emails or instant **0-cost template substitution** (`use_template=True`), with automatic LLM fallback if rate limits occur.
 2. **Multi-Agent Orchestration**: Decoupled AI agents handle memory loading, company research, prompt compilation, Gmail sending, thread tracking, and reply classification.
-3. **Automated Gmail Integration**: Direct REST API integration with Gmail OAuth2 for sending, inbox polling, and conversation state management.
-4. **Token Cost Optimization**: Built-in SHA256 prompt caching avoids redundant LLM generations and optimizes API token usage.
+3. **Automated Background Scheduler**: APScheduler runs twice daily (configurable, default 12 hours) to poll Gmail threads, classify inbound recruiter replies (`interested`, `not_interested`, `auto_reply`), and automatically send follow-up emails after 3 days of silence (max 2 follow-ups).
+4. **Multi-Tier LLM Resiliency**: `FallbackLLMProvider` automatically fails over from `gemini-3.5-flash-lite` (500 RPD free tier) → `gemini-3.1-flash-lite` (500 RPD) → `OpenAI` to prevent pipeline interruption.
+5. **Token Cost Optimization**: Built-in SHA256 prompt caching avoids redundant LLM generations and optimizes API token usage.
 
 ---
 
@@ -26,30 +28,35 @@ The **AI Job Outreach Agent** automates the entire outreach workflow autonomousl
 flowchart TD
     subgraph Client ["Client / API Layer"]
         API["FastAPI REST Endpoints (/api/v1)"]
+        SCHED["APScheduler (AsyncIOScheduler - 12h interval)"]
     end
 
     subgraph Orchestration ["Agent Pipeline"]
         ORCH["OrchestratorAgent"]
         MEM["MemoryAgent (Read / Write Context)"]
         RES["ResearchAgent (Company & Contact Context)"]
-        GEN["EmailGeneratorAgent (LLM Structured Prompting)"]
+        GEN["EmailGeneratorAgent (LLM Synthesis or 0-Cost Template)"]
         GMAIL["GmailAgent (Send & Poll Inbound Replies)"]
         CLASS["ReplyClassifierAgent (Intent Analysis)"]
-        FUP["FollowUpAgent (Timely Follow-ups)"]
+        FUP["FollowUpAgent (3-Day Follow-ups, Max 2)"]
     end
 
     subgraph Services ["Core Services & Storage"]
+        FALLBACK["FallbackLLMProvider (Multi-Tier Resiliency)"]
         CACHE["CachingLLMProvider (SHA256 Token Cache)"]
-        LLM["LLM Providers (Gemini / OpenAI)"]
+        LLM["LLM Providers (Gemini 3.5-Flash-Lite / OpenAI)"]
         GMAIL_API["Google Gmail REST API"]
         DB[(Async SQLite / PostgreSQL - SQLAlchemy 2.0)]
     end
 
     API --> ORCH
+    SCHED --> GMAIL
+    SCHED --> FUP
     ORCH --> MEM
     ORCH --> RES
     ORCH --> GEN
-    GEN --> CACHE
+    GEN --> FALLBACK
+    FALLBACK --> CACHE
     CACHE --> LLM
     ORCH --> GMAIL
     GMAIL --> GMAIL_API
@@ -66,20 +73,21 @@ flowchart TD
 | **`OrchestratorAgent`** | Pipeline execution, error isolation, context state routing | Standardized `AgentResult` |
 | **`MemoryAgent`** | Reads prior interactions, stores outreach outcomes & preferences | Structured `agent_memory` DB records |
 | **`ResearchAgent`** | Fetches and summarizes company/contact background context | Enriched context dictionary |
-| **`EmailGeneratorAgent`** | Compiles structured Pydantic prompts & generates email drafts | `EmailGenerationOutput` (Subject, Body, Reasoning) |
+| **`EmailGeneratorAgent`** | Synthesizes AI email or uses instant 0-cost template substitution | `EmailGenerationOutput` (Subject, Body, Reasoning) |
 | **`GmailAgent`** | Sends emails via OAuth2 API, polls inbox for inbound thread messages | Gmail Thread ID & persistent DB records |
-| **`ReplyClassifierAgent`** | Classifies reply intent (`interested`, `not_interested`, `question`, `auto_reply`) | `ReplyClassificationOutput` with confidence score |
-| **`FollowUpAgent`** | Generates non-pushy follow-ups for unreplied target outreach | `FollowUpOutput` draft |
+| **`ReplyClassifierAgent`** | Classifies reply intent (`interested`, `not_interested`, `question`, `auto_reply`, `opted_out`) | `ReplyClassificationOutput` with confidence score |
+| **`FollowUpAgent`** | Generates non-pushy follow-ups after 3 days of silence (max 2 follow-ups) | `FollowUpOutput` draft |
 
 ---
 
 ## ⚙️ Tech Stack
 
 - **Framework**: FastAPI, Pydantic v2, Pydantic-Settings
+- **Scheduler**: APScheduler (AsyncIOScheduler)
 - **Database & ORM**: SQLAlchemy 2.0 (Async), SQLite (aiosqlite) / PostgreSQL (asyncpg)
-- **AI Integrations**: Google Gemini 3.6 Flash (via `httpx`), OpenAI GPT-4o-mini
+- **AI Integrations**: Google Gemini 3.5-Flash-Lite & 3.1-Flash-Lite (via `httpx`), OpenAI GPT-4o-mini
 - **Email Service**: Google Gmail REST API via OAuth2
-- **Testing**: `pytest`, `pytest-asyncio`, `httpx`
+- **Testing**: `pytest`, `pytest-asyncio`, `httpx` (34 passing tests)
 
 ---
 
@@ -110,10 +118,14 @@ LOG_LEVEL=INFO
 # Database
 DATABASE_URL=sqlite+aiosqlite:///./data/dev.db
 
-# LLM Configuration
+# LLM Configuration (500 RPD free tier model)
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
+LLM_FALLBACK_PROVIDER=gemini-3.1-flash-lite
+
+# Scheduler Configuration (720 minutes = 12 hours / 2x daily)
+SCHEDULER_INTERVAL_MINUTES=720
 
 # Sender Identity
 SENDER_NAME=Ritika Jain
@@ -143,7 +155,7 @@ Interactive API Docs will be available at: **http://127.0.0.1:8000/docs**
 
 ## 🧪 Testing & Execution
 
-### Run Automated Unit & Integration Tests
+### Run Automated Unit & Integration Tests (34 Tests)
 ```bash
 pytest -v
 ```
@@ -173,7 +185,10 @@ python scripts/test_pipeline.py
 | `GET` | `/api/v1/contacts` | List contacts with company associations |
 | `POST` | `/api/v1/outreach/campaigns` | Create an outreach campaign |
 | `POST` | `/api/v1/outreach/campaigns/{id}/targets` | Add contacts to campaign |
+| `GET` | `/api/v1/outreach/campaigns/{id}/targets` | List targets with status & follow-up counters |
 | `POST` | `/api/v1/outreach/campaigns/{id}/run` | Execute multi-agent campaign pipeline |
+| `POST` | `/api/v1/outreach/campaigns/{id}/poll-replies` | Manual trigger to poll Gmail for replies & classify |
+| `POST` | `/api/v1/outreach/campaigns/{id}/send-follow-ups` | Manual trigger to send due follow-ups |
 
 ---
 
